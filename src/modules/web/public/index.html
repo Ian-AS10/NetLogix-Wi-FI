@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>NetLogix Wi-Fi - Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e2f; color: #fff; margin: 0; padding: 0; }
+        .header { background: #2a2a40; padding: 20px; text-align: center; border-bottom: 2px solid #00d2ff; }
+        h1 { color: #00d2ff; margin: 0; }
+        .tabs { display: flex; justify-content: center; background: #2a2a40; padding-top: 10px; }
+        .tab-btn { background: #1e1e2f; color: #aaa; border: none; padding: 15px 30px; cursor: pointer; font-size: 1.1em; border-top-left-radius: 8px; border-top-right-radius: 8px; margin: 0 5px; transition: 0.3s; }
+        .tab-btn:hover { color: #fff; background: #3a3a50; }
+        .tab-btn.active { background: #00d2ff; color: #1e1e2f; font-weight: bold; }
+        .container { padding: 30px; max-width: 1300px; margin: auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .card { background: #2a2a40; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        h2 { border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0;}
+        #riskScore, #manualRiskScore { font-size: 2.5em; font-weight: bold; }
+        .danger { color: #ff4d4d; } .safe { color: #00ff9d; } .warning { color: #ffcc00; }
+        ul { list-style-type: none; padding: 0; }
+        li { background: #3a3a50; margin: 5px 0; padding: 10px; border-radius: 5px; border-left: 4px solid #00d2ff;}
+        
+        /* Layouts novos */
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .metrics-bar { display: flex; justify-content: space-between; background: #1e1e2f; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444; }
+        .metric-item { text-align: center; width: 30%; }
+        .metric-value { font-size: 1.8em; font-weight: bold; color: #00d2ff; }
+        
+        .terminal { background: #0d0d12; border: 1px solid #444; padding: 15px; border-radius: 6px; height: 180px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; color: #00ff9d; }
+        .terminal p { margin: 2px 0; border-bottom: 1px dashed #222; padding-bottom: 2px;}
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #ccc;}
+        input[type="number"], input[type="text"] { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #555; background: #333; color: white; box-sizing: border-box; font-size: 1.1em; }
+        button.action-btn { background-color: #ff4d4d; color: white; border: none; padding: 15px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1.1em; transition: 0.3s; }
+        button.action-btn:hover { background-color: #ff1a1a; }
+        
+        .toggle-container { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; background: #3a3a50; padding: 15px; border-radius: 8px;}
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #00ff9d; }
+        input:checked + .slider:before { transform: translateX(24px); }
+        input:checked.tshark-toggle + .slider { background-color: #9d00ff; }
+        
+        @media (max-width: 768px) { .grid-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ NetLogix Wi-Fi</h1>
+        <p style="color: #aaa; margin-top: 5px;">Sistema de Detecção de Intrusão com Captura Real e Logs Interativos</p>
+    </div>
+
+    <!-- Navegação em Abas -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('monitoramento', this)">📊 Monitoramento</button>
+        <button class="tab-btn" onclick="switchTab('simulador', this)">🧪 Simulador Manual</button>
+    </div>
+
+    <div class="container">
+        <!-- ABA 1: MONITORAMENTO -->
+        <div id="monitoramento" class="tab-content active">
+            
+            <!-- Barra de Métricas Reais/Simuladas (Novo) -->
+            <div class="metrics-bar">
+                <div class="metric-item">
+                    <div style="color: #aaa; font-size: 0.9em;">Conexões (req/s)</div>
+                    <div class="metric-value" id="dispConnRate">0</div>
+                </div>
+                <div class="metric-item">
+                    <div style="color: #aaa; font-size: 0.9em;">Falhas Auth/TCP</div>
+                    <div class="metric-value" id="dispAuthFailures" style="color: #ffcc00;">0</div>
+                </div>
+                <div class="metric-item">
+                    <div style="color: #aaa; font-size: 0.9em;">Novos MACs</div>
+                    <div class="metric-value" id="dispMacCount" style="color: #ff4d4d;">0</div>
+                </div>
+            </div>
+
+            <div class="grid-container">
+                <div>
+                    <!-- MOCK UI -->
+                    <div class="toggle-container">
+                        <label class="switch"><input type="checkbox" id="autoTrafficToggle" onchange="toggleAutoTraffic()"><span class="slider"></span></label>
+                        <div>
+                            <strong>Gerador de Tráfego Fantasma (Mock)</strong><br>
+                            <small style="color: #aaa;">Gera pacotes e picos de ataque aleatórios a cada 3s.</small>
+                        </div>
+                    </div>
+
+                    <!-- TSHARK UI -->
+                    <div class="toggle-container" style="border: 1px solid #9d00ff;">
+                        <label class="switch">
+                            <input type="checkbox" id="realTrafficToggle" class="tshark-toggle" onchange="toggleRealTraffic()">
+                            <span class="slider"></span>
+                        </label>
+                        <div style="width: 100%;">
+                            <strong style="color: #d18aff;">📡 Captura de Rede REAL (TShark)</strong><br>
+                            <small style="color: #aaa;">Escuta a placa de rede em tempo real!</small>
+                            <div style="margin-top: 5px;">
+                                <input type="text" id="interfaceName" placeholder="Interface (ex: eth0, Wi-Fi)" style="padding: 5px; font-size: 0.9em;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>Regras de Segurança Ativas (BGA)</h2>
+                        <ul id="rulesList"></ul>
+                        <div id="noRulesMsg" style="display:none; color: #888;">Nenhuma regra ativa (Tráfego Normal)</div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="card" style="text-align: center; padding-bottom: 5px;">
+                        <h2>Risco Atual da Rede (Fuzzy)</h2>
+                        <div id="riskScore">-- / 100</div>
+                        <p id="strategyInfo" style="color: #aaa; font-size: 0.9em; mt-2"></p>
+                    </div>
+                    <div class="card">
+                        <h2>Evolução do Risco</h2>
+                        <canvas id="metricsChart" width="400" height="150"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Terminal de Logs (Novo) -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 10px;">
+                    <h2 style="border: none; margin: 0; padding: 0;">Terminal de Captura de Pacotes</h2>
+                    <label class="switch" style="transform: scale(0.8);"><input type="checkbox" id="autoFetchToggle" checked onchange="toggleAutoFetch()"><span class="slider"></span></label>
+                </div>
+                <div class="terminal" id="terminalBox">
+                    <p style="color: #aaa;">> Aguardando tráfego na rede...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 2: SIMULADOR MANUAL (mantida igual) -->
+        <div id="simulador" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h2>Injetar Vetor de Ataque</h2>
+                    <div class="form-group"><label>Taxa de Conexão (req/s)</label><input type="number" id="simConnectionRate" value="10" min="0"></div>
+                    <div class="form-group"><label>Falhas de Autenticação</label><input type="number" id="simAuthFailures" value="0" min="0"></div>
+                    <div class="form-group"><label>Novos MACs</label><input type="number" id="simNewMacCount" value="0" min="0"></div>
+                    <button class="action-btn" onclick="sendSimulatedData()">⚠️ Disparar Ataque Manual</button>
+                    <div id="simFeedback" style="margin-top: 15px; color: #00ff9d; display: none; text-align: center; font-weight: bold;">Ataque Injetado!</div>
+                </div>
+
+                <div class="card">
+                    <h2>Resultado Imediato do Teste</h2>
+                    <div style="text-align: center; margin-bottom: 20px;"><div id="manualRiskScore">-- / 100</div></div>
+                    <h3>Regras Acionadas:</h3>
+                    <ul id="manualRulesList"></ul>
+                    <div id="manualNoRulesMsg" style="display:none; color: #888;">Tráfego seguro.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        const ctx = document.getElementById('metricsChart').getContext('2d');
+        const metricsChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Score de Risco', data: [], borderColor: '#00d2ff', tension: 0.3, fill: true, backgroundColor: 'rgba(0, 210, 255, 0.1)' }] },
+            options: { scales: { y: { beginAtZero: true, max: 100 } }, animation: false }
+        });
+
+        let pollingInterval = setInterval(fetchStatus, 2000);
+        
+        function toggleAutoFetch() {
+            if (document.getElementById('autoFetchToggle').checked) {
+                pollingInterval = setInterval(fetchStatus, 2000); fetchStatus();
+            } else { clearInterval(pollingInterval); }
+        }
+
+        async function toggleAutoTraffic() {
+            const isChecked = document.getElementById('autoTrafficToggle').checked;
+            if(isChecked) { document.getElementById('realTrafficToggle').checked = false; } 
+            await fetch('/api/traffic/auto', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: isChecked })
+            });
+        }
+
+        async function toggleRealTraffic() {
+            const isChecked = document.getElementById('realTrafficToggle').checked;
+            const iface = document.getElementById('interfaceName').value;
+            if(isChecked) { document.getElementById('autoTrafficToggle').checked = false; }
+            await fetch('/api/traffic/real', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: isChecked, interfaceName: iface })
+            });
+        }
+
+        function updateUI(data, prefix = '') {
+            const riskDiv = document.getElementById(prefix + 'riskScore');
+            riskDiv.innerText = `${data.riskScore} / 100`;
+            
+            if (data.riskScore > 70) riskDiv.className = 'danger';
+            else if (data.riskScore > 40) riskDiv.className = 'warning';
+            else riskDiv.className = 'safe';
+
+            if(prefix === '') {
+                document.getElementById('strategyInfo').innerText = `Otimizador ativo: ${data.strategyInUse}`;
+                // Atualiza a Barra de Métricas com os dados reais/mockados crus (NOVO)
+                if(data.metrics) {
+                    document.getElementById('dispConnRate').innerText = data.metrics.connectionRate;
+                    document.getElementById('dispAuthFailures').innerText = data.metrics.authFailures;
+                    document.getElementById('dispMacCount').innerText = data.metrics.newMacCount;
+                }
+            }
+
+            const rulesList = document.getElementById(prefix + 'rulesList');
+            const noRulesMsg = document.getElementById(prefix + 'noRulesMsg');
+            rulesList.innerHTML = '';
+            
+            if (data.activeRules && data.activeRules.length > 0) {
+                noRulesMsg.style.display = 'none';
+                data.activeRules.forEach(rule => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${rule.name}</strong> <br> 
+                                    <span style="font-size: 0.85em; color: #ccc;">
+                                        Alvo: ${rule.targetAttack} | CPU: ${rule.cpuCost}% | FPR: ${rule.falsePositiveRate}
+                                    </span>`;
+                    rulesList.appendChild(li);
+                });
+            } else { noRulesMsg.style.display = 'block'; }
+            
+            // Atualiza o Terminal de Logs
+            if(prefix === '' && data.logs) {
+                const terminal = document.getElementById('terminalBox');
+                terminal.innerHTML = '';
+                data.logs.slice().reverse().forEach(log => {
+                    const p = document.createElement('p');
+                    p.innerText = `> ${log}`;
+                    
+                    // Colore os alertas
+                    if(log.includes('[ERRO]') || log.includes('ALERTA') || log.includes('NOVO MAC')) p.style.color = '#ff4d4d';
+                    if(log.includes('[MOCK] Pico')) p.style.color = '#ffcc00';
+                    
+                    terminal.appendChild(p);
+                });
+            }
+        }
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                updateUI(data);
+
+                const now = new Date().toLocaleTimeString();
+                metricsChart.data.labels.push(now);
+                metricsChart.data.datasets[0].data.push(data.riskScore);
+                
+                if (metricsChart.data.labels.length > 12) {
+                    metricsChart.data.labels.shift(); metricsChart.data.datasets[0].data.shift();
+                }
+                metricsChart.update();
+            } catch (err) { console.error("Erro ao buscar", err); }
+        }
+        
+        async function sendSimulatedData() {
+            document.getElementById('autoTrafficToggle').checked = false;
+            document.getElementById('realTrafficToggle').checked = false;
+            await toggleAutoTraffic();
+            await toggleRealTraffic();
+
+            const data = {
+                connectionRate: parseFloat(document.getElementById('simConnectionRate').value),
+                authFailures: parseFloat(document.getElementById('simAuthFailures').value),
+                newMacCount: parseFloat(document.getElementById('simNewMacCount').value)
+            };
+
+            try {
+                const response = await fetch('/api/simulate', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (response.ok) {
+                    const resData = await response.json();
+                    document.getElementById('simFeedback').style.display = 'block';
+                    setTimeout(() => document.getElementById('simFeedback').style.display = 'none', 3000);
+                    updateUI(resData.status, 'manual');
+                    if(document.getElementById('autoFetchToggle').checked) fetchStatus();
+                }
+            } catch (error) {}
+        }
+        fetchStatus();
+    </script>
+</body>
+</html>
