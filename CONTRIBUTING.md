@@ -8,8 +8,8 @@ Este documento estabelece as diretrizes de desenvolvimento, arquitetura e organi
 
 Este projeto é desenvolvido e mantido pelo seguinte time:
 
-| Nome | Função / Papel | RA |
-| :--- | :--- | :--- |
+| Nome | RA |
+| :--- | :--- |
 | **Ian Araujo dos Santos** | 92094 |
 | **Leonardo Bezerra Gomes Pereira** | 94343 |
 | **Davi Kazussuke Pontes Ashihata** | 90613 |
