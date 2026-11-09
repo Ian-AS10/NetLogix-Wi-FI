@@ -10,11 +10,11 @@ Este projeto é desenvolvido e mantido pelo seguinte time:
 
 | Nome | Função / Papel | RA |
 | :--- | :--- | :--- |
-| **Ian Araujo dos Santos** | Líder do Projeto | 92094 |
-| **Leonardo Bezerra Gomes Pereira** | Desenvolvedor / Pesquisador | 94343 |
-| **Davi Kazussuke Pontes Ashihata** | Desenvolvedor / Pesquisador | 90613 |
-| **Victor Ferreira** | Desenvolvedor / Pesquisador | 55915 |
-| **Estéfany Ferreira Ramos de Cunha** | Desenvolvedora / Pesquisadora | 60057 |
+| **Ian Araujo dos Santos** | 92094 |
+| **Leonardo Bezerra Gomes Pereira** | 94343 |
+| **Davi Kazussuke Pontes Ashihata** | 90613 |
+| **Victor Ferreira** | 55915 |
+| **Estéfany Ferreira Ramos de Cunha** | 60057 |
 
 ---
 
