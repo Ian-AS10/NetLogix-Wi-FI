@@ -9,6 +9,7 @@ import { RiskGaugeCard } from './components/RiskGaugeCard.js';
 import { TemporalCharts } from './components/TemporalCharts.js';
 import { OptimizerComparisonCard } from './components/OptimizerComparisonCard.js';
 import { RuleCatalogCard } from './components/RuleCatalogCard.js';
+import { FirewallArchitecturePipelineCard } from './components/FirewallArchitecturePipelineCard.js';
 import { ControlDeck } from './components/ControlDeck.js';
 import { AuditTerminal } from './components/AuditTerminal.js';
 import { SystemStatus, MetricSnapshot, ThreatScenario } from './domain/metrics.js';
@@ -231,6 +232,22 @@ export default function App() {
     }
   };
 
+  const handlePurgeRules = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/rules/purge', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || 'Falha ao expurgar regras.');
+      setStatus(json.data);
+      showToast('success', json.message);
+      fetchData();
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleRunOptimization = async (maxCpu: number, maxFp: number, seed: number) => {
     setIsOptimizing(true);
     try {
@@ -311,6 +328,13 @@ export default function App() {
           comparison={comparison}
           onRunOptimization={handleRunOptimization}
           isOptimizing={isOptimizing}
+        />
+
+        {/* Option 1: Hybrid Intelligent Firewall Architecture & Autonomous Purge Pipeline */}
+        <FirewallArchitecturePipelineCard
+          status={status}
+          onPurgeRules={handlePurgeRules}
+          isLoading={isLoading}
         />
 
         {/* Rules Catalog & Active IPS Enforcement */}

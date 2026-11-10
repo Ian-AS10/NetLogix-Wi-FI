@@ -8,6 +8,7 @@ import {
   OptimizationComparison,
   OptimizationConstraints,
 } from '../../domain/optimizer.js';
+import { config } from '../../config/appConfig.js';
 import { SECURITY_RULES_CATALOG } from './rulesCatalog.js';
 import { bgaOptimizer } from './bgaOptimizer.js';
 import { greedyOptimizer } from './greedyOptimizer.js';
@@ -18,8 +19,8 @@ export function runOptimizationComparison(
   customBgaParams?: Partial<BGAParameters>
 ): OptimizationComparison {
   const constraints: OptimizationConstraints = {
-    maxCpuBudget: customConstraints?.maxCpuBudget ?? 80,
-    maxFalsePositiveRate: customConstraints?.maxFalsePositiveRate ?? 0.15,
+    maxCpuBudget: customConstraints?.maxCpuBudget ?? config.maxCpuBudget,
+    maxFalsePositiveRate: customConstraints?.maxFalsePositiveRate ?? config.maxFalsePositiveRate,
   };
 
   const bgaParams: BGAParameters = {

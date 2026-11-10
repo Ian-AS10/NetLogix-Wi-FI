@@ -76,4 +76,7 @@ export interface SystemStatus {
   autoProtectEnabled?: boolean;
   mitigatedPacketsTotal?: number;
   lastAnalysisTimestamp: number;
+  hasAdminPrivileges?: boolean;
+  physicalFirewallActive?: boolean;
+  lastFirewallAction?: 'APPLIED' | 'PURGED' | 'IDLE';
 }

@@ -95,4 +95,21 @@ router.post('/auto-protect', (req: Request, res: Response, next: NextFunction) =
   }
 });
 
+/**
+ * POST /api/rules/purge
+ * Executa o expurgo autônomo (Rollback) imediato de todas as regras no Firewall.
+ */
+router.post('/purge', (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const status = idsEngine.purgeRules();
+    res.json({
+      success: true,
+      message: 'Expurgo Autônomo (Rollback) concluído: todas as regras do Firewall foram removidas.',
+      data: status,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

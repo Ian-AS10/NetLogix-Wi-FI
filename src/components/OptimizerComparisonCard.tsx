@@ -19,7 +19,7 @@ export const OptimizerComparisonCard: React.FC<OptimizerComparisonCardProps> = (
   isOptimizing,
 }) => {
   const [showConfig, setShowConfig] = useState(false);
-  const [maxCpu, setMaxCpu] = useState(comparison?.constraints.maxCpuBudget ?? 80);
+  const [maxCpu, setMaxCpu] = useState(comparison?.constraints.maxCpuBudget ?? 40);
   const [maxFp, setMaxFp] = useState((comparison?.constraints.maxFalsePositiveRate ?? 0.15) * 100);
   const [seed, setSeed] = useState(42);
 

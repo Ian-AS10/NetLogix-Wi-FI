@@ -129,6 +129,23 @@ export const Header: React.FC<HeaderProps> = ({ status, onRefresh, isLoading }) 
             </span>
           </div>
 
+          {/* Windows Defender Firewall Elevation Status */}
+          <div
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-mono text-[11px] ${
+              status?.hasAdminPrivileges
+                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-600/50'
+                : 'bg-zinc-900/80 text-zinc-300 border-zinc-700'
+            }`}
+            title={
+              status?.hasAdminPrivileges
+                ? 'PowerShell com elevação de Administrador: comandos New-NetFirewallRule ativos no SO'
+                : 'Modo Híbrido Resiliente: execução segura sem erro fatal caso não haja UAC de Administrador'
+            }
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-sky-400" />
+            <span>{status?.hasAdminPrivileges ? 'FIREWALL FÍSICO (ADM)' : 'FIREWALL HÍBRIDO'}</span>
+          </div>
+
           {/* Refresh button */}
           <button
             type="button"

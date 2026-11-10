@@ -14,6 +14,7 @@ export interface AppConfig {
   defaultNetworkInterface: string;
   maxCpuBudget: number;
   maxFalsePositiveRate: number;
+  riskThreshold: number;
   bga: {
     populationSize: number;
     generations: number;
@@ -41,8 +42,9 @@ export const config: AppConfig = {
   samplingWindowSec: parseNumber(process.env.SAMPLING_WINDOW_SEC, 5, 1, 60),
   historyBufferSize: parseNumber(process.env.HISTORY_BUFFER_SIZE, 60, 10, 500),
   defaultNetworkInterface: process.env.DEFAULT_INTERFACE || 'wlan0',
-  maxCpuBudget: parseNumber(process.env.MAX_CPU_BUDGET, 80, 10, 100),
+  maxCpuBudget: parseNumber(process.env.MAX_CPU_BUDGET, 40, 10, 100),
   maxFalsePositiveRate: parseNumber(process.env.MAX_FP_RATE, 0.15, 0.01, 0.50),
+  riskThreshold: parseNumber(process.env.RISK_THRESHOLD, 40, 10, 90),
   bga: {
     populationSize: parseNumber(process.env.BGA_POPULATION, 40, 10, 200),
     generations: parseNumber(process.env.BGA_GENERATIONS, 35, 5, 200),

@@ -17,6 +17,7 @@ import { config } from '../config/appConfig.js';
 import { fuzzyEngine } from '../core/fuzzy/fuzzyEngine.js';
 import { runOptimizationComparison } from '../core/optimization/optimizerComparison.js';
 import { SECURITY_RULES_CATALOG } from '../core/optimization/rulesCatalog.js';
+import { firewallManager } from './firewallManager.js';
 import { tsharkCaptureService } from './tsharkCaptureService.js';
 import { simulatedTrafficService } from './simulatedTrafficService.js';
 import { logger } from '../utils/logger.js';
@@ -56,15 +57,21 @@ export class IDSEngine {
       totalBytes: 0,
     };
 
-    // Inicializa otimizador com piso preventivo (55) e aplica proteção inicial BGA
-    this.latestComparison = runOptimizationComparison(Math.max(55, this.currentRiskScore));
-    const initialRules =
-      this.latestComparison.bgaResult.selectedRuleIds.length > 0
-        ? this.latestComparison.bgaResult.selectedRuleIds
-        : ['RL-01', 'RL-03', 'RL-05', 'RL-07'];
+    // Inicializa comparador BGA vs Guloso com os limites do sistema (40% de CPU)
+    this.latestComparison = runOptimizationComparison(this.currentRiskScore, {
+      maxCpuBudget: config.maxCpuBudget,
+    });
 
-    for (const id of initialRules) {
-      this.enforcedRuleIds.add(id);
+    // Se o score inicial estiver acima do limiar de 40%, ativa regras. Se <= 40%, inicia seguro (expurgado).
+    if (this.currentRiskScore > config.riskThreshold) {
+      for (const id of this.latestComparison.bgaResult.selectedRuleIds) {
+        this.enforcedRuleIds.add(id);
+      }
+      const rulesToEnforce = SECURITY_RULES_CATALOG.filter((r) => this.enforcedRuleIds.has(r.id));
+      firewallManager.applyRules(rulesToEnforce);
+    } else {
+      // Estado seguro inicial (Risco <= 40% -> nenhuma regra física ativa)
+      firewallManager.purgeRules(false);
     }
 
     // Conecta callbacks de pacotes
@@ -76,7 +83,11 @@ export class IDSEngine {
 
     logger.info(
       'IDSEngine',
-      `Motor IDS/IPS NetLogix iniciado com Proteção Ativa (${this.enforcedRuleIds.size} regras aplicadas: ${Array.from(this.enforcedRuleIds).join(', ')}).`
+      `Motor IDS/IPS NetLogix iniciado [Limiar: ${config.riskThreshold}%, CPU Max: ${config.maxCpuBudget}%]. Estado Inicial: ${
+        this.enforcedRuleIds.size > 0
+          ? `Proteção Ativa (${this.enforcedRuleIds.size} regras)`
+          : 'Tráfego Seguro (Sem regras ativas no firewall)'
+      }.`
     );
   }
 
@@ -87,6 +98,8 @@ export class IDSEngine {
         : this.mode === 'simulated'
         ? 'active'
         : 'stopped';
+
+    const fwStatus = firewallManager.getStatus();
 
     return {
       status: captureStatus,
@@ -103,6 +116,9 @@ export class IDSEngine {
       autoProtectEnabled: this.autoProtectEnabled,
       mitigatedPacketsTotal: this.mitigatedPacketsTotal,
       lastAnalysisTimestamp: this.lastAnalysisTimestamp,
+      hasAdminPrivileges: fwStatus.hasAdminPrivileges,
+      physicalFirewallActive: fwStatus.activePhysicalRulesCount > 0,
+      lastFirewallAction: fwStatus.lastAction,
     };
   }
 
@@ -153,6 +169,9 @@ export class IDSEngine {
       );
     }
 
+    const rulesToEnforce = SECURITY_RULES_CATALOG.filter((r) => this.enforcedRuleIds.has(r.id));
+    firewallManager.applyRules(rulesToEnforce);
+
     return this.getStatus();
   }
 
@@ -167,11 +186,32 @@ export class IDSEngine {
         this.enforcedRuleIds.add(id);
       }
     }
+
+    const rulesToEnforce = SECURITY_RULES_CATALOG.filter((r) => this.enforcedRuleIds.has(r.id));
+    if (rulesToEnforce.length > 0) {
+      firewallManager.applyRules(rulesToEnforce);
+    } else {
+      firewallManager.purgeRules();
+    }
+
     logger.security(
       'ActiveDefense',
-      `Política de proteção [${sourceLabel}] aplicada no firewall: ${
-        this.enforcedRuleIds.size > 0 ? Array.from(this.enforcedRuleIds).join(', ') : 'Nenhuma regra'
+      `[Passo C] Política de proteção [${sourceLabel}] aplicada no firewall: ${
+        this.enforcedRuleIds.size > 0 ? Array.from(this.enforcedRuleIds).join(', ') : 'Nenhuma regra (Expurgado)'
       }`
+    );
+    return this.getStatus();
+  }
+
+  /**
+   * Executa manualmente o Expurgo Autônomo (Rollback) removendo todas as regras do firewall.
+   */
+  public purgeRules(): SystemStatus {
+    this.enforcedRuleIds.clear();
+    firewallManager.purgeRules();
+    logger.security(
+      'IDSEngine',
+      '[Expurgo Autônomo / Rollback]: Limpeza manual acionada. Todas as regras do Windows Defender Firewall foram removidas.'
     );
     return this.getStatus();
   }
@@ -271,14 +311,19 @@ export class IDSEngine {
    */
   public reevaluateOptimizer(maxCpu?: number, maxFp?: number, seed?: number): OptimizationComparison {
     this.latestComparison = runOptimizationComparison(
-      Math.max(55, this.currentRiskScore),
-      { maxCpuBudget: maxCpu, maxFalsePositiveRate: maxFp },
+      this.currentRiskScore,
+      { maxCpuBudget: maxCpu ?? config.maxCpuBudget, maxFalsePositiveRate: maxFp },
       { seed }
     );
     this.lastAnalysisTimestamp = Date.now();
 
-    if (this.autoProtectEnabled && this.latestComparison.bgaResult.selectedRuleIds.length > 0) {
-      this.applyRuleSet(this.latestComparison.bgaResult.selectedRuleIds, 'Auto-BGA');
+    if (this.autoProtectEnabled) {
+      if (this.currentRiskScore > config.riskThreshold && this.latestComparison.bgaResult.selectedRuleIds.length > 0) {
+        this.applyRuleSet(this.latestComparison.bgaResult.selectedRuleIds, 'Auto-BGA');
+      } else if (this.currentRiskScore <= config.riskThreshold) {
+        this.enforcedRuleIds.clear();
+        firewallManager.purgeRules();
+      }
     }
 
     logger.info(
@@ -368,7 +413,7 @@ export class IDSEngine {
       this.metricsHistory.shift();
     }
 
-    // 1. Inferência Fuzzy de Risco
+    // 1. Inferência Fuzzy de Risco (Passo A)
     const fuzzyResult = fuzzyEngine.evaluate({
       trafficRate: snapshot.trafficRate,
       anomalyRate: snapshot.anomalyRate,
@@ -379,24 +424,43 @@ export class IDSEngine {
     this.currentRiskScore = fuzzyResult.riskScore;
     this.currentRiskLevel = fuzzyResult.riskLevel;
 
-    // 2. Se o score de risco variou significativamente (+- 3 pontos), reotimiza e aplica as regras
-    if (Math.abs(previousScore - this.currentRiskScore) >= 3 || Date.now() - this.lastAnalysisTimestamp > 30000) {
-      // Usa piso preventivo 55 para manter defesas ativas selecionadas mesmo em tráfego basal
-      this.latestComparison = runOptimizationComparison(Math.max(55, this.currentRiskScore));
-      this.lastAnalysisTimestamp = Date.now();
+    // 2. Passo A, B e 4: Avaliação do Limiar de Risco (40%) e Expurgo Autônomo
+    const threshold = config.riskThreshold; // 40%
+    const isSafe = this.currentRiskScore <= threshold;
 
-      if (this.autoProtectEnabled && this.latestComparison.bgaResult.selectedRuleIds.length > 0) {
-        this.enforcedRuleIds.clear();
-        for (const id of this.latestComparison.bgaResult.selectedRuleIds) {
-          this.enforcedRuleIds.add(id);
+    if (this.autoProtectEnabled) {
+      if (isSafe) {
+        // [Passo A & Passo 4]: Risco <= 40% -> Tráfego Seguro, NENHUMA REGRA APLICADA, EXPURGO AUTÔNOMO (Rollback)
+        if (this.enforcedRuleIds.size > 0) {
+          logger.security(
+            'IDSEngine',
+            `[4. Expurgo Autônomo / Rollback]: Score caiu para ${this.currentRiskScore}% (<= ${threshold}%). Restaurando tráfego normal e removendo regras no Firewall via PowerShell.`
+          );
+          this.enforcedRuleIds.clear();
+          firewallManager.purgeRules();
         }
-      }
+      } else {
+        // [Passo B & Passo C]: Risco > 40% -> Aciona BGAOptimizer com limite de 40% de CPU
+        if (Math.abs(previousScore - this.currentRiskScore) >= 3 || Date.now() - this.lastAnalysisTimestamp > 30000) {
+          this.latestComparison = runOptimizationComparison(this.currentRiskScore, {
+            maxCpuBudget: config.maxCpuBudget, // 40%
+          });
+          this.lastAnalysisTimestamp = Date.now();
 
-      if (this.currentRiskLevel === 'HIGH' || this.currentRiskLevel === 'CRITICAL') {
-        logger.security(
-          'IDSEngine',
-          `Alerta de Risco Elevado: Score ${this.currentRiskScore}/100 [${this.currentRiskLevel}]. Regras BGA recomendadas e aplicadas em proteção ativa: ${this.latestComparison.bgaResult.selectedRuleIds.join(', ')}`
-        );
+          const bgaRuleIds = this.latestComparison.bgaResult.selectedRuleIds;
+          this.enforcedRuleIds.clear();
+          for (const id of bgaRuleIds) {
+            this.enforcedRuleIds.add(id);
+          }
+
+          const rulesToEnforce = SECURITY_RULES_CATALOG.filter((r) => this.enforcedRuleIds.has(r.id));
+          firewallManager.applyRules(rulesToEnforce);
+
+          logger.security(
+            'IDSEngine',
+            `[Passo B & C]: Risco em ${this.currentRiskScore}% (> ${threshold}%). BGA selecionou ${bgaRuleIds.length} regras (CPU: ${this.latestComparison.bgaResult.totalCpuCostPercent}% <= ${config.maxCpuBudget}%). Executando no Firewall: ${bgaRuleIds.join(', ')}`
+          );
+        }
       }
     }
   }
@@ -408,7 +472,8 @@ export class IDSEngine {
     }
     tsharkCaptureService.stopCapture();
     simulatedTrafficService.stop();
-    logger.info('IDSEngine', 'Motor IDS finalizado.');
+    firewallManager.purgeRules(false);
+    logger.info('IDSEngine', 'Motor IDS finalizado e regras de firewall expurgadas com segurança.');
   }
 }
 
