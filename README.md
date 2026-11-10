@@ -155,12 +155,12 @@ O projeto conta com documentação formal de arquitetura localizada em `docs/adr
 
 ## 👥 Colaboradores do Projeto
 
-| Nome |  | RA | 
-| ----- | ----- | ----- | 
-| **Ian Araujo dos Santos** |  | 92094 | 
-| **Leonardo Bezerra Gomes Pereira** |  | 94343 | 
-| **Davi Kazussuke Pontes Ashihata** |  | 90613 | 
-| **Victor Ferreira** |  | 55915 | 
-| **Estéfany Ferreira Ramos de Cunha** |  | 60057 | 
+| Nome | RA | 
+| ----- | ----- | 
+| **Ian Araujo dos Santos** | 92094 | 
+| **Leonardo Bezerra Gomes Pereira** | 94343 | 
+| **Davi Kazussuke Pontes Ashihata** | 90613 | 
+| **Victor Ferreira** | 55915 | 
+| **Estéfany Ferreira Ramos de Cunha** | 60057 | 
 
 *Projeto desenvolvido para fins acadêmicos e de pesquisa em Segurança da Informação e Inteligência Computacional.*
