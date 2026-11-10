@@ -1,4 +1,4 @@
-# NetLogix Wi-Fi IDS — Monitoramento Passivo & Otimização de Defesas
+# NetLogix Wi-Fi — Monitoramento Passivo & Otimização de Defesas
 
 Prova de Conceito (PoC) de um Sistema de Detecção de Intrusão (IDS) para monitoramento de rede sem fio com análise de risco difusa (Fuzzy Logic Mamdani) e otimização multiobjetivo de regras de defesa via Algoritmo Genético Binário (BGA) comparado a um Baseline Guloso determinístico.
 
