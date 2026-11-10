@@ -28,8 +28,9 @@ export default function App() {
   const [history, setHistory] = useState<MetricSnapshot[]>([]);
   const [comparison, setComparison] = useState<OptimizationComparison | null>(null);
   const [rules, setRules] = useState<SecurityRule[]>([]);
-  const [interfaces, setInterfaces] = useState<Array<{ name: string; address?: string; isUp: boolean }>>([]);
+  const [interfaces, setInterfaces] = useState<Array<{ name: string; label?: string; address?: string; isUp: boolean }>>([]);
   const [tsharkInstalled, setTsharkInstalled] = useState<boolean>(false);
+  const [tsharkPath, setTsharkPath] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
@@ -62,6 +63,7 @@ export default function App() {
       if (ifacesRes.success) {
         setInterfaces(ifacesRes.data.interfaces || []);
         setTsharkInstalled(ifacesRes.data.tsharkInstalled || false);
+        setTsharkPath(ifacesRes.data.tsharkPath || null);
       }
       if (logsRes.success) setLogs(logsRes.data);
     } catch {
@@ -116,6 +118,25 @@ export default function App() {
     }
   };
 
+  const handleSetCustomTsharkPath = async (customPath: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/interfaces/tshark-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customPath }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || 'Falha ao localizar TShark no caminho informado.');
+      showToast('success', json.message);
+      fetchData();
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleStartSimulation = async (scenario: ThreatScenario) => {
     setIsLoading(true);
     try {
@@ -150,17 +171,58 @@ export default function App() {
     }
   };
 
-  const handleInjectMetrics = async (trafficRate: number, anomalyRate: number, newMacs: number) => {
+  const handleToggleRule = async (ruleId: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/metrics/inject', {
+      const res = await fetch('/api/rules/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trafficRate, anomalyRate, newMacs }),
+        body: JSON.stringify({ ruleId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || 'Falha ao injetar métricas.');
+      if (!res.ok) throw new Error(json.error?.message || 'Falha ao alternar regra de proteção.');
+      setStatus(json.data);
       showToast('success', json.message);
+      fetchData();
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleApplyRuleSet = async (ruleIds: string[], source: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/rules/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ruleIds, source }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || 'Falha ao aplicar lote de regras.');
+      setStatus(json.data);
+      showToast('success', json.message);
+      fetchData();
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToggleAutoProtect = async (enabled: boolean) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/rules/auto-protect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || 'Falha ao configurar proteção automática.');
+      setStatus(json.data);
+      showToast('info', json.message);
       fetchData();
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : String(err));
@@ -180,7 +242,8 @@ export default function App() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message || 'Falha ao executar otimização.');
       setComparison(json.data);
-      showToast('success', 'Comparação BGA vs Guloso executada com sucesso.');
+      showToast('success', 'Comparação BGA vs Guloso executada e sincronizada com o motor IPS.');
+      fetchData();
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : String(err));
     } finally {
@@ -250,11 +313,18 @@ export default function App() {
           isOptimizing={isOptimizing}
         />
 
-        {/* Rules Catalog Breakdown */}
+        {/* Rules Catalog & Active IPS Enforcement */}
         <RuleCatalogCard
           rules={rules}
           selectedBgaRuleIds={comparison?.bgaResult.selectedRuleIds ?? []}
           selectedGreedyRuleIds={comparison?.greedyResult.selectedRuleIds ?? []}
+          enforcedRuleIds={status?.enforcedRuleIds ?? []}
+          autoProtectEnabled={status?.autoProtectEnabled ?? true}
+          mitigatedPacketsTotal={status?.mitigatedPacketsTotal ?? 0}
+          onToggleRule={handleToggleRule}
+          onApplyRuleSet={handleApplyRuleSet}
+          onToggleAutoProtect={handleToggleAutoProtect}
+          isLoading={isLoading}
         />
 
         {/* Operational Control Deck */}
@@ -262,12 +332,13 @@ export default function App() {
           status={status}
           interfaces={interfaces}
           tsharkInstalled={tsharkInstalled}
+          tsharkPath={tsharkPath}
           onStartCapture={handleStartCapture}
           onStopCapture={handleStopCapture}
           onStartSimulation={handleStartSimulation}
           onStopSimulation={handleStopSimulation}
-          onInjectMetrics={handleInjectMetrics}
           onRefreshInterfaces={fetchData}
+          onSetCustomTsharkPath={handleSetCustomTsharkPath}
           isLoading={isLoading}
         />
 
@@ -277,7 +348,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-zinc-800 bg-zinc-950 py-4 px-6 text-center text-xs text-zinc-500 font-mono">
-        NetLogix Wi-Fi IDS — Prova de Conceito de Monitoramento Passivo & Otimização de Regras de Defesa (Advisory Mode).
+        NetLogix Wi-Fi IDS/IPS — Monitoramento de Rede, Inferência Fuzzy Mamdani & Proteção Ativa Automatizada por BGA.
       </footer>
     </div>
   );

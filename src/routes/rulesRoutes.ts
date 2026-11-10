@@ -1,22 +1,98 @@
 /**
  * @file rulesRoutes.ts
- * Rota para consulta do catálogo de regras de defesa de segurança.
+ * Rotas para consulta e ativação de regras de defesa ativa (IPS) no motor NetLogix.
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { SECURITY_RULES_CATALOG } from '../core/optimization/rulesCatalog.js';
+import { idsEngine } from '../services/idsEngine.js';
+import { ValidationError } from '../utils/errors.js';
 
 const router = Router();
 
-router.get('/', (req: Request, res: Response) => {
+router.get('/', (_req: Request, res: Response) => {
+  const status = idsEngine.getStatus();
   res.json({
     success: true,
     data: SECURITY_RULES_CATALOG,
     meta: {
       total: SECURITY_RULES_CATALOG.length,
-      disclaimer: 'Valores da PoC são estimativas heurísticas parametrizadas para simulação analítica.',
+      enforcedRuleIds: status.enforcedRuleIds ?? [],
+      autoProtectEnabled: status.autoProtectEnabled ?? true,
+      mitigatedPacketsTotal: status.mitigatedPacketsTotal ?? 0,
+      disclaimer:
+        'Regras em modo de proteção ativa IPS. Custos de CPU e taxas de falso positivo são estimativas heurísticas parametrizadas.',
     },
   });
+});
+
+/**
+ * POST /api/rules/toggle
+ * Ativa ou desativa individualmente uma regra de defesa no motor IPS.
+ */
+router.post('/toggle', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { ruleId } = req.body || {};
+    if (!ruleId || typeof ruleId !== 'string') {
+      throw new ValidationError('O parâmetro "ruleId" é obrigatório.');
+    }
+    const status = idsEngine.toggleRuleEnforcement(ruleId);
+    const isNowActive = status.enforcedRuleIds?.includes(ruleId);
+    res.json({
+      success: true,
+      message: isNowActive
+        ? `Proteção ativa habilitada para a regra ${ruleId}.`
+        : `Regra ${ruleId} desativada manualmente.`,
+      data: status,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/rules/apply
+ * Aplica imediatamente um lote de regras (ex.: seleção ótima do BGA ou do Guloso).
+ */
+router.post('/apply', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { ruleIds, source } = req.body || {};
+    if (!Array.isArray(ruleIds)) {
+      throw new ValidationError('O parâmetro "ruleIds" deve ser uma lista de IDs de regras.');
+    }
+    const label = typeof source === 'string' && source.trim() ? source.trim() : 'Manual';
+    const status = idsEngine.applyRuleSet(ruleIds, label);
+    res.json({
+      success: true,
+      message: `Política de proteção [${label}] aplicada com ${status.enforcedRuleIds?.length ?? 0} regras ativas.`,
+      data: status,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/rules/auto-protect
+ * Habilita ou pausa a sincronização automática das regras BGA com o motor de proteção.
+ */
+router.post('/auto-protect', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { enabled } = req.body || {};
+    if (typeof enabled !== 'boolean') {
+      throw new ValidationError('O parâmetro "enabled" deve ser booleano.');
+    }
+    const status = idsEngine.setAutoProtect(enabled);
+    res.json({
+      success: true,
+      message: enabled
+        ? 'Proteção Automática BGA (IPS) ativada.'
+        : 'Proteção Automática pausada. Controle manual de regras habilitado.',
+      data: status,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

@@ -1,22 +1,23 @@
 /**
  * @file ControlDeck.tsx
- * Painel de controle operacional do IDS: captura TShark, simulação de ataques e injeção de métricas.
+ * Painel de controle operacional do IDS/IPS: captura passiva TShark (Windows/Linux/macOS) e simulação de cenários.
  */
 
-import React, { useState } from 'react';
-import { Terminal, Play, Square, Wifi, AlertTriangle, Send, RefreshCw, Cpu } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Terminal, Play, Square, Wifi, AlertTriangle, RefreshCw, Cpu, CheckCircle2, FolderSearch } from 'lucide-react';
 import { SystemStatus, ThreatScenario } from '../domain/metrics.js';
 
 interface ControlDeckProps {
   status: SystemStatus | null;
-  interfaces: Array<{ name: string; address?: string; isUp: boolean }>;
+  interfaces: Array<{ name: string; label?: string; address?: string; isUp: boolean }>;
   tsharkInstalled: boolean;
+  tsharkPath?: string | null;
   onStartCapture: (iface: string) => void;
   onStopCapture: () => void;
   onStartSimulation: (scenario: ThreatScenario) => void;
   onStopSimulation: () => void;
-  onInjectMetrics: (trafficRate: number, anomalyRate: number, newMacs: number) => void;
   onRefreshInterfaces: () => void;
+  onSetCustomTsharkPath?: (customPath: string) => void;
   isLoading: boolean;
 }
 
@@ -24,27 +25,46 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
   status,
   interfaces,
   tsharkInstalled,
+  tsharkPath,
   onStartCapture,
   onStopCapture,
   onStartSimulation,
   onStopSimulation,
-  onInjectMetrics,
   onRefreshInterfaces,
+  onSetCustomTsharkPath,
   isLoading,
 }) => {
   const [selectedIface, setSelectedIface] = useState<string>(
     interfaces[0]?.name || status?.selectedInterface || 'wlan0'
   );
-  const [manualTraffic, setManualTraffic] = useState<number>(1200);
-  const [manualAnomaly, setManualAnomaly] = useState<number>(45);
-  const [manualMacs, setManualMacs] = useState<number>(12);
+  const [customPathInput, setCustomPathInput] = useState<string>('C:\\Program Files\\Wireshark\\tshark.exe');
+  const [showPathConfig, setShowPathConfig] = useState<boolean>(false);
+
+  // Sincroniza automaticamente a interface selecionada quando a lista do sistema operacional (Windows/Linux) carrega
+  useEffect(() => {
+    if (interfaces.length > 0) {
+      const exists = interfaces.some((i) => i.name === selectedIface);
+      if (!exists) {
+        // Prioriza interface Wi-Fi ou a primeira interface ativa (não-loopback)
+        const preferred =
+          interfaces.find((i) => /wi-?fi|wlan|wireless/i.test(i.label || i.name) && i.isUp) ||
+          interfaces.find((i) => i.isUp) ||
+          interfaces[0];
+        if (preferred) {
+          setSelectedIface(preferred.name);
+        }
+      }
+    }
+  }, [interfaces, selectedIface]);
 
   const isRealCapturing = status?.mode === 'real_capture';
   const isSimulating = status?.mode === 'simulated';
 
-  const handleManualInject = (e: React.FormEvent) => {
+  const handleSaveCustomPath = (e: React.FormEvent) => {
     e.preventDefault();
-    onInjectMetrics(manualTraffic, manualAnomaly, manualMacs);
+    if (onSetCustomTsharkPath && customPathInput.trim()) {
+      onSetCustomTsharkPath(customPathInput.trim());
+    }
   };
 
   return (
@@ -56,7 +76,7 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Column 1: Captura Real TShark */}
         <div className="bg-zinc-950/50 p-4 rounded-lg border border-zinc-800 flex flex-col justify-between space-y-3">
           <div>
@@ -65,23 +85,70 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
                 <Wifi className="h-4 w-4 text-emerald-400" />
                 1. Captura Passiva TShark
               </h3>
-              <button
-                type="button"
-                onClick={onRefreshInterfaces}
-                title="Recarregar interfaces"
-                className="text-zinc-400 hover:text-zinc-200 p-1"
-              >
-                <RefreshCw className="h-3 w-3" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPathConfig((prev) => !prev)}
+                  title="Configurar caminho do executável TShark (Windows/Linux)"
+                  className="text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded text-[10px] font-mono border border-zinc-800 hover:border-zinc-700 flex items-center gap-1"
+                >
+                  <FolderSearch className="h-3 w-3" /> Caminho
+                </button>
+                <button
+                  type="button"
+                  onClick={onRefreshInterfaces}
+                  title="Recarregar interfaces e redetectar TShark"
+                  className="text-zinc-400 hover:text-zinc-200 p-1"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </button>
+              </div>
             </div>
 
-            {!tsharkInstalled && (
-              <div className="bg-amber-950/30 border border-amber-800/50 rounded p-2 text-[11px] text-amber-300 mb-2">
-                <div className="flex items-center gap-1 font-semibold mb-0.5">
-                  <AlertTriangle className="h-3.5 w-3.5" /> TShark ausente no host
+            {tsharkInstalled ? (
+              <div className="bg-emerald-950/25 border border-emerald-800/50 rounded p-2 text-[11px] text-emerald-300 mb-2.5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 truncate">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate font-mono text-[10px]">
+                    TShark ativo: <strong>{tsharkPath || 'tshark'}</strong>
+                  </span>
                 </div>
-                Use o Modo Simulado abaixo ou instale: <code className="bg-zinc-900 px-1 py-0.5 rounded text-[10px]">sudo apt install tshark</code>
               </div>
+            ) : (
+              <div className="bg-amber-950/30 border border-amber-800/50 rounded p-2.5 text-[11px] text-amber-300 mb-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 font-semibold">
+                    <AlertTriangle className="h-3.5 w-3.5" /> TShark não localizado no PATH padrão
+                  </div>
+                </div>
+                <p className="text-[10px] text-amber-200/80 leading-relaxed">
+                  No <strong>Windows</strong>, verifique <code className="bg-zinc-900 px-1 py-0.5 rounded">C:\Program Files\Wireshark\tshark.exe</code> ou clique em <strong>Caminho</strong> acima para informar onde o Wireshark está instalado.
+                </p>
+              </div>
+            )}
+
+            {(showPathConfig || !tsharkInstalled) && onSetCustomTsharkPath && (
+              <form onSubmit={handleSaveCustomPath} className="mb-3 bg-zinc-900/90 border border-zinc-800 rounded p-2 space-y-1.5">
+                <label className="block text-[10px] text-zinc-400 font-mono">
+                  Caminho do executável TShark (Windows / Linux):
+                </label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={customPathInput}
+                    onChange={(e) => setCustomPathInput(e.target.value)}
+                    placeholder="C:\Program Files\Wireshark\tshark.exe"
+                    className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-200 font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="px-2.5 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-mono text-[10px] font-semibold shrink-0 transition"
+                  >
+                    Vincular
+                  </button>
+                </div>
+              </form>
             )}
 
             <label className="block text-[11px] text-zinc-400 font-mono mb-1">Interface de Rede</label>
@@ -93,7 +160,7 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
             >
               {interfaces.map((iface) => (
                 <option key={iface.name} value={iface.name}>
-                  {iface.name} {iface.address ? `(${iface.address})` : ''}
+                  {iface.label || iface.name} {iface.address ? `(${iface.address})` : ''}
                 </option>
               ))}
               {interfaces.length === 0 && <option value="wlan0">wlan0 (Padrão)</option>}
@@ -131,7 +198,7 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
               2. Simulação de Cenários
             </h3>
             <p className="text-[11px] text-zinc-400 mb-2">
-              Injete padrões de tráfego sintéticos para avaliar o motor fuzzy e o BGA sem TShark.
+              Injete padrões de tráfego sintéticos para avaliar o motor fuzzy e a resposta automática de defesa do BGA sem TShark.
             </p>
 
             <div className="grid grid-cols-2 gap-1.5 text-xs font-mono">
@@ -200,65 +267,6 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
             </button>
           )}
         </div>
-
-        {/* Column 3: Injeção Manual de Métricas */}
-        <form
-          onSubmit={handleManualInject}
-          className="bg-zinc-950/50 p-4 rounded-lg border border-zinc-800 flex flex-col justify-between space-y-3"
-        >
-          <div>
-            <h3 className="text-xs font-mono font-bold text-zinc-200 flex items-center gap-1.5 mb-2">
-              <Send className="h-4 w-4 text-sky-400" />
-              3. Injeção Manual Pontual
-            </h3>
-
-            <div className="space-y-2 text-xs font-mono">
-              <div>
-                <label className="block text-[11px] text-zinc-400">Tráfego (pps)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={5000}
-                  value={manualTraffic}
-                  onChange={(e) => setManualTraffic(Number(e.target.value))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-zinc-200 text-xs focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-zinc-400">Anomalias / Resets (eps)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={200}
-                  value={manualAnomaly}
-                  onChange={(e) => setManualAnomaly(Number(e.target.value))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-zinc-200 text-xs focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-zinc-400">Novos MACs (qtd)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={50}
-                  value={manualMacs}
-                  onChange={(e) => setManualMacs(Number(e.target.value))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-zinc-200 text-xs focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-1.5 px-3 rounded bg-sky-600 hover:bg-sky-500 text-white font-mono text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50"
-          >
-            <Send className="h-3.5 w-3.5" /> Injetar & Avaliar
-          </button>
-        </form>
       </div>
     </div>
   );
