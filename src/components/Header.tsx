@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { ShieldCheck, Activity, RefreshCw, FileDown } from 'lucide-react';
+import { ShieldCheck, Activity, RefreshCw } from 'lucide-react';
 import { SystemStatus } from '../domain/metrics.js';
 import { NetLogixLogo } from './NetLogixLogo.js';
 
@@ -63,47 +63,6 @@ export const Header: React.FC<HeaderProps> = ({ status, onRefresh, isLoading }) 
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800/80 text-zinc-300 border border-zinc-700">
                 v1.2 Active
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const svgEl = document.getElementById('netlogix-header-svg');
-                  if (!svgEl) return;
-                  const serializer = new XMLSerializer();
-                  const svgStr = serializer.serializeToString(svgEl);
-                  const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-                  const url = URL.createObjectURL(svgBlob);
-                  const img = new Image();
-                  img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 2048;
-                    canvas.height = 2048;
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                      ctx.fillStyle = '#09090b';
-                      ctx.fillRect(0, 0, 2048, 2048);
-                      ctx.drawImage(img, 128, 128, 1792, 1792);
-                      canvas.toBlob((pngBlob) => {
-                        if (!pngBlob) return;
-                        const pngUrl = URL.createObjectURL(pngBlob);
-                        const a = document.createElement('a');
-                        a.href = pngUrl;
-                        a.download = 'NetLogix-Logo-Oficial-2048x2048.png';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(pngUrl);
-                      }, 'image/png');
-                    }
-                    URL.revokeObjectURL(url);
-                  };
-                  img.src = url;
-                }}
-                title="Baixar imagem PNG em alta resolução (2048×2048) da logo NetLogix"
-                className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950/70 hover:bg-purple-900/80 text-purple-200 border border-purple-500/50 flex items-center gap-1 transition cursor-pointer"
-              >
-                <FileDown className="h-3 w-3 text-purple-300" />
-                Baixar Logo PNG
-              </button>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
               Monitoramento de rede, inferência Fuzzy e proteção ativa automatizada (BGA vs Guloso)
