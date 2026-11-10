@@ -1,11 +1,6 @@
 /**
  * @file rulesCatalog.ts
- * Catálogo tipado e documentado de contramedidas de segurança de rede para PoC.
- *
- * AVISO OPERACIONAL:
- * Os valores de custo de CPU, taxa de falso positivo e cobertura de ameaça são
- * estimativas heurísticas parametrizadas para a Prova de Conceito (PoC) NetLogix
- * e NÃO constituem garantias operacionais de roteadores de produção.
+ * Catálogo tipado e documentado de contramedidas de proteção ativa de rede do NetLogix Wi-Fi.
  */
 
 import { SecurityRule } from '../../domain/rules.js';
@@ -19,6 +14,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     fpRate: 0.02,
     threatCoverage: 0.75,
     description: 'Mitiga conexões incompletas SYN Flood mantendo cookies de handshake sem alocar buffers de socket prematuramente.',
+    enforcementDirective: 'nft add rule inet netlogix input tcp flags syn limit rate over 400/second drop',
   },
   {
     id: 'RL-02',
@@ -29,6 +25,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     threatCoverage: 0.85,
     prerequisites: ['RL-01'],
     description: 'Aplica teto de conexões simultâneas por IP de origem para preservar a tabela de estados do firewall.',
+    enforcementDirective: 'nft add rule inet netlogix input ct state new meter flood_ip { ip saddr ct count over 35 } drop',
   },
   {
     id: 'RL-03',
@@ -38,6 +35,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     fpRate: 0.03,
     threatCoverage: 0.80,
     description: 'Descarta rajadas de quadros de desautenticação e desassociação Wi-Fi não autenticados emitidos em curto intervalo.',
+    enforcementDirective: 'wlan-guard --iface wlan0 --drop-subtype 10,12 --burst-limit 5/sec',
   },
   {
     id: 'RL-04',
@@ -47,6 +45,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     fpRate: 0.07,
     threatCoverage: 0.95,
     description: 'Valida criptografia e numeração sequencial de quadros de gerenciamento 802.11w para neutralizar ataques de desconexão.',
+    enforcementDirective: 'iw dev wlan0 set ieee80211w 2 && hostapd_cli set ieee80211w 2',
   },
   {
     id: 'RL-05',
@@ -56,6 +55,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     fpRate: 0.03,
     threatCoverage: 0.85,
     description: 'Intercepta e valida pacotes ARP confrontando contra a base de concessões DHCP confiáveis para barrar envenenamento de cache.',
+    enforcementDirective: 'ebtables -A FORWARD -p ARP --arp-op Reply -m dai --verify-dhcp-leases -j DROP',
   },
   {
     id: 'RL-06',
@@ -65,6 +65,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     fpRate: 0.05,
     threatCoverage: 0.70,
     description: 'Bloqueia tráfego originado de endereços IP incompatíveis com o MAC cadastrado no roteador.',
+    enforcementDirective: 'nft add rule inet netlogix forward ether saddr . ip saddr != @dhcp_bindings drop',
   },
   {
     id: 'RL-07',
@@ -74,6 +75,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     fpRate: 0.04,
     threatCoverage: 0.78,
     description: 'Detecta sondagens sequenciais ou estocásticas de portas em tempo real e descarta temporariamente o IP escaneador.',
+    enforcementDirective: 'nft add rule inet netlogix input tcp flags & (fin|syn|rst|psh|ack|urg) == syn meter scan { ip saddr limit rate over 25/second } drop',
   },
   {
     id: 'RL-08',
@@ -83,6 +85,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     fpRate: 0.04,
     threatCoverage: 0.82,
     description: 'Limita a geração e trânsito de pacotes TCP Reset originados por sondagens a portas fechadas.',
+    enforcementDirective: 'nft add rule inet netlogix output tcp flags rst limit rate over 15/second drop',
   },
   {
     id: 'RL-09',
@@ -93,6 +96,7 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     threatCoverage: 0.92,
     incompatibilities: ['RL-10'],
     description: 'Analisa anomalias de entropia e payloads em camadas superiores; alto consumo computacional de CPU.',
+    enforcementDirective: 'netlogix-dpi --engine l7-entropy --action drop-malformed --max-cpu 38',
   },
   {
     id: 'RL-10',
@@ -103,5 +107,6 @@ export const SECURITY_RULES_CATALOG: SecurityRule[] = [
     threatCoverage: 0.50,
     incompatibilities: ['RL-09'],
     description: 'Amostragem estatística rápida de cabeçalhos sem rastreamento de estado; baixo overhead para dispositivos legados.',
+    enforcementDirective: 'nft add rule inet netlogix prerouting meta random 10% counter name stateless_sample',
   },
 ];

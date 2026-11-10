@@ -1,11 +1,12 @@
 /**
  * @file Header.tsx
- * Cabeçalho do painel NOC NetLogix Wi-Fi IDS com badges de estado em tempo real.
+ * Cabeçalho do painel NOC NetLogix Wi-Fi IDS/IPS com badges de estado em tempo real.
  */
 
 import React from 'react';
-import { Shield, Radio, Activity, AlertTriangle, RefreshCw, Cpu } from 'lucide-react';
+import { ShieldCheck, Activity, RefreshCw, FileDown } from 'lucide-react';
 import { SystemStatus } from '../domain/metrics.js';
+import { NetLogixLogo } from './NetLogixLogo.js';
 
 interface HeaderProps {
   status: SystemStatus | null;
@@ -41,27 +42,71 @@ export const Header: React.FC<HeaderProps> = ({ status, onRefresh, isLoading }) 
   };
 
   const badge = getStatusBadge();
+  const isActiveCapture = status?.mode === 'simulated' || status?.status === 'active';
+  const activeRulesCount = status?.enforcedRuleIds?.length ?? 0;
 
   return (
     <header className="border-b border-zinc-800 bg-zinc-950/90 backdrop-blur sticky top-0 z-30 px-4 py-3 sm:px-6">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Brand & Advisory */}
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-            <Shield className="h-6 w-6" />
-          </div>
+        <div className="flex items-center gap-3.5">
+          <NetLogixLogo
+            riskLevel={status?.riskLevel}
+            riskScore={status?.riskScore}
+            isActiveCapture={isActiveCapture}
+          />
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-bold text-zinc-100 tracking-tight font-mono">
-                NETLOGIX <span className="text-emerald-400">WI-FI IDS</span>
+                NETLOGIX <span className="text-emerald-400">WI-FI IDS/IPS</span>
               </h1>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800/80 text-zinc-300 border border-zinc-700">
-                PoC v1.0
+                v1.2 Active
               </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const svgEl = document.getElementById('netlogix-header-svg');
+                  if (!svgEl) return;
+                  const serializer = new XMLSerializer();
+                  const svgStr = serializer.serializeToString(svgEl);
+                  const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+                  const url = URL.createObjectURL(svgBlob);
+                  const img = new Image();
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 2048;
+                    canvas.height = 2048;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.fillStyle = '#09090b';
+                      ctx.fillRect(0, 0, 2048, 2048);
+                      ctx.drawImage(img, 128, 128, 1792, 1792);
+                      canvas.toBlob((pngBlob) => {
+                        if (!pngBlob) return;
+                        const pngUrl = URL.createObjectURL(pngBlob);
+                        const a = document.createElement('a');
+                        a.href = pngUrl;
+                        a.download = 'NetLogix-Logo-Oficial-2048x2048.png';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(pngUrl);
+                      }, 'image/png');
+                    }
+                    URL.revokeObjectURL(url);
+                  };
+                  img.src = url;
+                }}
+                title="Baixar imagem PNG em alta resolução (2048×2048) da logo NetLogix"
+                className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950/70 hover:bg-purple-900/80 text-purple-200 border border-purple-500/50 flex items-center gap-1 transition cursor-pointer"
+              >
+                <FileDown className="h-3 w-3 text-purple-300" />
+                Baixar Logo PNG
+              </button>
             </div>
-            <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Monitoramento passivo de rede & otimizador de regras defensivas (BGA vs Guloso)
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Monitoramento de rede, inferência Fuzzy e proteção ativa automatizada (BGA vs Guloso)
             </p>
           </div>
         </div>
@@ -76,10 +121,12 @@ export const Header: React.FC<HeaderProps> = ({ status, onRefresh, isLoading }) 
             <span>{badge.label}</span>
           </div>
 
-          {/* Non-intrusive warning notice */}
-          <div className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono">
-            <Radio className="h-3 w-3 text-amber-400" />
-            <span>Modo Passivo (Sem bloqueios no firewall)</span>
+          {/* Active Protection Status Badge */}
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/50 border border-emerald-700/60 text-emerald-300 font-mono">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+            <span>
+              Proteção Ativa IPS ({activeRulesCount} regras | {status?.mitigatedPacketsTotal ?? 0} bloqueios)
+            </span>
           </div>
 
           {/* Refresh button */}

@@ -1,0 +1,56 @@
+<svg viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="160" rx="28" fill="#09090b"/>
+  <defs>
+    <linearGradient id="tLit" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#71717a"/>
+      <stop offset="50%" stopColor="#3f3f46"/>
+      <stop offset="100%" stopColor="#18181b"/>
+    </linearGradient>
+    <linearGradient id="tDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#27272a"/>
+      <stop offset="100%" stopColor="#09090b"/>
+    </linearGradient>
+    <linearGradient id="pLit" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#d8b4fe"/>
+      <stop offset="45%" stopColor="#a855f7"/>
+      <stop offset="100%" stopColor="#6b21a8"/>
+    </linearGradient>
+    <linearGradient id="pDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#6b21a8"/>
+      <stop offset="100%" stopColor="#2e1065"/>
+    </linearGradient>
+    <linearGradient id="eLit" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#6ee7b7"/>
+      <stop offset="50%" stopColor="#10b981"/>
+      <stop offset="100%" stopColor="#064e3b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="64" stroke="#10b981" strokeWidth="2.5" strokeDasharray="36 16" strokeLinecap="round" strokeOpacity="0.75"/>
+  <circle cx="80" cy="80" r="54" stroke="#6ee7b7" strokeWidth="1.8" strokeDasharray="22 12 6 12" strokeLinecap="round" strokeOpacity="0.55"/>
+  <circle cx="80" cy="80" r="44" stroke="#10b981" strokeWidth="2.4" strokeDasharray="48 20" strokeLinecap="round" strokeOpacity="0.9"/>
+  <polygon points="80,80 30,30 62,46" fill="url(#pLit)"/>
+  <polygon points="80,80 30,30 46,62" fill="url(#tDark)"/>
+  <polygon points="80,80 130,130 114,98" fill="url(#pLit)"/>
+  <polygon points="80,80 130,130 98,114" fill="url(#tDark)"/>
+  <polygon points="80,80 32,128 48,96" fill="url(#tLit)"/>
+  <polygon points="80,80 32,128 64,112" fill="url(#tDark)"/>
+  <polygon points="80,80 128,32 96,48" fill="url(#tLit)"/>
+  <polygon points="80,80 128,32 112,64" fill="url(#tDark)"/>
+  <polygon points="80,10 80,80 62,56" fill="url(#tLit)"/>
+  <polygon points="80,10 80,80 98,56" fill="url(#pDark)"/>
+  <polygon points="80,150 80,80 98,104" fill="url(#pLit)"/>
+  <polygon points="80,150 80,80 62,104" fill="url(#tDark)"/>
+  <polygon points="10,80 80,80 56,62" fill="url(#pLit)"/>
+  <polygon points="10,80 80,80 56,98" fill="url(#tDark)"/>
+  <polygon points="150,80 80,80 104,62" fill="url(#tLit)"/>
+  <polygon points="150,80 80,80 104,98" fill="url(#pLit)"/>
+  <circle cx="80" cy="80" r="26" fill="#09090b" stroke="url(#pLit)" strokeWidth="4"/>
+  <circle cx="80" cy="80" r="18" fill="#09090b" stroke="#10b981" strokeWidth="2" strokeDasharray="24 8"/>
+  <path d="M 34 126 C 42 98, 62 104, 80 80 C 98 56, 102 38, 126 34" stroke="url(#eLit)" strokeWidth="4.5" strokeLinecap="round"/>
+  <path d="M 34 126 C 62 118, 56 98, 80 80 C 104 62, 118 62, 126 34" stroke="url(#pLit)" strokeWidth="4.5" strokeLinecap="round"/>
+  <circle cx="42" cy="108" r="4.5" fill="#10b981"/>
+  <circle cx="55" cy="95" r="4.5" fill="#a855f7"/>
+  <circle cx="80" cy="80" r="5.5" fill="#10b981"/>
+  <circle cx="105" cy="55" r="4.5" fill="#a855f7"/>
+  <circle cx="118" cy="52" r="4.5" fill="#10b981"/>
+</svg>
