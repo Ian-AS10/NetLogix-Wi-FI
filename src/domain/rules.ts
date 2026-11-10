@@ -53,4 +53,9 @@ export interface SecurityRule {
    * Descrição técnica do mecanismo de defesa.
    */
   description: string;
+
+  /**
+   * Diretiva técnica de aplicação no motor de proteção/firewall.
+   */
+  enforcementDirective?: string;
 }

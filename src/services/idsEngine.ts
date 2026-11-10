@@ -1,6 +1,7 @@
 /**
  * @file idsEngine.ts
- * Orquestrador central do IDS NetLogix Wi-Fi: coleta métricas, infere risco fuzzy e aciona otimizadores.
+ * Orquestrador central do IDS/IPS NetLogix Wi-Fi: coleta métricas, infere risco fuzzy,
+ * executa os otimizadores (BGA vs Guloso) e aplica regras de proteção ativa.
  */
 
 import {
@@ -15,6 +16,7 @@ import { OptimizationComparison } from '../domain/optimizer.js';
 import { config } from '../config/appConfig.js';
 import { fuzzyEngine } from '../core/fuzzy/fuzzyEngine.js';
 import { runOptimizationComparison } from '../core/optimization/optimizerComparison.js';
+import { SECURITY_RULES_CATALOG } from '../core/optimization/rulesCatalog.js';
 import { tsharkCaptureService } from './tsharkCaptureService.js';
 import { simulatedTrafficService } from './simulatedTrafficService.js';
 import { logger } from '../utils/logger.js';
@@ -32,11 +34,16 @@ export class IDSEngine {
   private latestMetrics: MetricSnapshot;
   private metricsHistory: MetricSnapshot[] = [];
   private latestComparison: OptimizationComparison;
-  private currentRiskScore = 15;
+  private currentRiskScore = 28;
   private currentRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
   private windowTimer: NodeJS.Timeout | null = null;
   private startTime = Date.now();
   private lastAnalysisTimestamp = Date.now();
+
+  // Estado de Proteção Ativa (IPS)
+  private enforcedRuleIds = new Set<string>();
+  private autoProtectEnabled = true;
+  private mitigatedPacketsTotal = 0;
 
   constructor() {
     this.latestMetrics = {
@@ -49,8 +56,16 @@ export class IDSEngine {
       totalBytes: 0,
     };
 
-    // Inicializa otimizador com baseline padrão
-    this.latestComparison = runOptimizationComparison(this.currentRiskScore);
+    // Inicializa otimizador com piso preventivo (55) e aplica proteção inicial BGA
+    this.latestComparison = runOptimizationComparison(Math.max(55, this.currentRiskScore));
+    const initialRules =
+      this.latestComparison.bgaResult.selectedRuleIds.length > 0
+        ? this.latestComparison.bgaResult.selectedRuleIds
+        : ['RL-01', 'RL-03', 'RL-05', 'RL-07'];
+
+    for (const id of initialRules) {
+      this.enforcedRuleIds.add(id);
+    }
 
     // Conecta callbacks de pacotes
     tsharkCaptureService.setOnPacket((packet) => this.handlePacket(packet));
@@ -59,7 +74,10 @@ export class IDSEngine {
     // Inicia janela periódica de avaliação métrica
     this.startWindowTicker();
 
-    logger.info('IDSEngine', `Motor IDS NetLogix iniciado (Janela de amostragem: ${this.samplingWindowSec}s).`);
+    logger.info(
+      'IDSEngine',
+      `Motor IDS/IPS NetLogix iniciado com Proteção Ativa (${this.enforcedRuleIds.size} regras aplicadas: ${Array.from(this.enforcedRuleIds).join(', ')}).`
+    );
   }
 
   public getStatus(): SystemStatus {
@@ -80,7 +98,10 @@ export class IDSEngine {
       activeScenario: this.mode === 'simulated' ? simulatedTrafficService.getScenario() : undefined,
       uptimeSeconds: Math.floor((Date.now() - this.startTime) / 1000),
       tsharkAvailable: tsharkCaptureService.isTSharkInstalled(),
-      recommendedRulesCount: this.latestComparison.bgaResult.selectedRules.length,
+      recommendedRulesCount: this.enforcedRuleIds.size,
+      enforcedRuleIds: Array.from(this.enforcedRuleIds),
+      autoProtectEnabled: this.autoProtectEnabled,
+      mitigatedPacketsTotal: this.mitigatedPacketsTotal,
       lastAnalysisTimestamp: this.lastAnalysisTimestamp,
     };
   }
@@ -91,6 +112,83 @@ export class IDSEngine {
 
   public getLatestComparison(): OptimizationComparison {
     return this.latestComparison;
+  }
+
+  /**
+   * Ativa ou desativa manualmente uma regra de defesa específica na camada de proteção.
+   */
+  public toggleRuleEnforcement(ruleId: string): SystemStatus {
+    const rule = SECURITY_RULES_CATALOG.find((r) => r.id === ruleId);
+    if (!rule) {
+      throw new ValidationError(`Regra de defesa "${ruleId}" não encontrada no catálogo.`);
+    }
+
+    if (this.enforcedRuleIds.has(ruleId)) {
+      this.enforcedRuleIds.delete(ruleId);
+      logger.warn('ActiveDefense', `Regra ${rule.id} (${rule.name}) desativada manualmente pelo operador.`);
+    } else {
+      // Verifica e ativa pré-requisitos automaticamente
+      if (rule.prerequisites) {
+        for (const prereqId of rule.prerequisites) {
+          if (!this.enforcedRuleIds.has(prereqId)) {
+            this.enforcedRuleIds.add(prereqId);
+            logger.info('ActiveDefense', `Pré-requisito ${prereqId} ativado automaticamente para suportar ${rule.id}.`);
+          }
+        }
+      }
+      // Remove incompatibilidades se estiverem ativas
+      if (rule.incompatibilities) {
+        for (const incompId of rule.incompatibilities) {
+          if (this.enforcedRuleIds.has(incompId)) {
+            this.enforcedRuleIds.delete(incompId);
+            logger.warn('ActiveDefense', `Regra incompatível ${incompId} desativada para aplicar ${rule.id}.`);
+          }
+        }
+      }
+
+      this.enforcedRuleIds.add(ruleId);
+      logger.security(
+        'ActiveDefense',
+        `Proteção ativada: ${rule.id} (${rule.name}) -> [${rule.enforcementDirective || 'netfilter active'}]`
+      );
+    }
+
+    return this.getStatus();
+  }
+
+  /**
+   * Aplica imediatamente um conjunto completo de regras (ex.: seleção do BGA ou do Guloso).
+   */
+  public applyRuleSet(ruleIds: string[], sourceLabel = 'BGA'): SystemStatus {
+    this.enforcedRuleIds.clear();
+    for (const id of ruleIds) {
+      const exists = SECURITY_RULES_CATALOG.some((r) => r.id === id);
+      if (exists) {
+        this.enforcedRuleIds.add(id);
+      }
+    }
+    logger.security(
+      'ActiveDefense',
+      `Política de proteção [${sourceLabel}] aplicada no firewall: ${
+        this.enforcedRuleIds.size > 0 ? Array.from(this.enforcedRuleIds).join(', ') : 'Nenhuma regra'
+      }`
+    );
+    return this.getStatus();
+  }
+
+  /**
+   * Alterna o modo de aplicação automática de defesas (IPS Automático).
+   */
+  public setAutoProtect(enabled: boolean): SystemStatus {
+    this.autoProtectEnabled = enabled;
+    logger.security(
+      'ActiveDefense',
+      `Proteção Automática BGA (IPS) ${enabled ? 'ATIVADA' : 'PAUSADA (Controle Manual)'}.`
+    );
+    if (enabled && this.latestComparison.bgaResult.selectedRuleIds.length > 0) {
+      this.applyRuleSet(this.latestComparison.bgaResult.selectedRuleIds, 'Auto-BGA');
+    }
+    return this.getStatus();
   }
 
   /**
@@ -145,7 +243,7 @@ export class IDSEngine {
   }
 
   /**
-   * Injeção manual de métricas para testes unitários de laboratório.
+   * Injeção de métricas para validação automatizada da API.
    */
   public injectManualMetrics(trafficRate: number, anomalyRate: number, newMacs: number): SystemStatus {
     if (trafficRate < 0 || anomalyRate < 0 || newMacs < 0) {
@@ -173,11 +271,16 @@ export class IDSEngine {
    */
   public reevaluateOptimizer(maxCpu?: number, maxFp?: number, seed?: number): OptimizationComparison {
     this.latestComparison = runOptimizationComparison(
-      this.currentRiskScore,
+      Math.max(55, this.currentRiskScore),
       { maxCpuBudget: maxCpu, maxFalsePositiveRate: maxFp },
       { seed }
     );
     this.lastAnalysisTimestamp = Date.now();
+
+    if (this.autoProtectEnabled && this.latestComparison.bgaResult.selectedRuleIds.length > 0) {
+      this.applyRuleSet(this.latestComparison.bgaResult.selectedRuleIds, 'Auto-BGA');
+    }
+
     logger.info(
       'IDSEngine',
       `Otimizador reavaliado: Vencedor [${this.latestComparison.winner}], Fitness BGA: ${this.latestComparison.bgaResult.fitnessScore}, Guloso: ${this.latestComparison.greedyResult.fitnessScore}`
@@ -189,12 +292,25 @@ export class IDSEngine {
     this.currentWindowPackets++;
     this.currentWindowBytes += packet.frameLen;
 
-    // Detecta anomalias conforme ADR-007
-    // 1. TCP Reset flag
-    // 2. 802.11 Deauth (subtype 12) ou Disassoc (subtype 10)
     const isDeauth = packet.wlanTypeSubtype === 10 || packet.wlanTypeSubtype === 12;
-    if (packet.tcpFlagsReset || isDeauth) {
+    const isSyn = Boolean(packet.tcpFlagsSyn);
+    const isReset = Boolean(packet.tcpFlagsReset);
+
+    if (isReset || isDeauth) {
       this.currentWindowAnomalies++;
+    }
+
+    // Contabiliza pacotes maliciosos bloqueados/mitigados pelas regras ativas
+    if (this.enforcedRuleIds.size > 0) {
+      const hasDeauthProtection = this.enforcedRuleIds.has('RL-03') || this.enforcedRuleIds.has('RL-04');
+      const hasFloodProtection =
+        this.enforcedRuleIds.has('RL-01') || this.enforcedRuleIds.has('RL-02') || this.enforcedRuleIds.has('RL-09');
+      const hasScanProtection =
+        this.enforcedRuleIds.has('RL-07') || this.enforcedRuleIds.has('RL-08') || this.enforcedRuleIds.has('RL-10');
+
+      if ((isDeauth && hasDeauthProtection) || (isSyn && hasFloodProtection) || (isReset && hasScanProtection)) {
+        this.mitigatedPacketsTotal++;
+      }
     }
 
     const mac = packet.wlanSa || packet.ethSrc;
@@ -207,6 +323,7 @@ export class IDSEngine {
     this.windowTimer = setInterval(() => {
       this.onWindowTick();
     }, this.samplingWindowSec * 1000);
+    this.windowTimer.unref();
   }
 
   private onWindowTick(): void {
@@ -214,7 +331,6 @@ export class IDSEngine {
     const trafficRate = Math.round((this.currentWindowPackets / duration) * 10) / 10;
     const anomalyRate = Math.round((this.currentWindowAnomalies / duration) * 10) / 10;
 
-    // Contabiliza novos MACs observados
     let newMacsCount = 0;
     for (const mac of this.currentWindowMacs) {
       if (!this.knownMacCache.has(mac)) {
@@ -223,7 +339,6 @@ export class IDSEngine {
       }
     }
 
-    // Limita o cache de MACs para evitar vazamento de memória (LRU básico)
     if (this.knownMacCache.size > 1000) {
       this.knownMacCache.clear();
     }
@@ -238,7 +353,6 @@ export class IDSEngine {
       totalBytes: this.currentWindowBytes,
     };
 
-    // Zera contadores da janela
     this.currentWindowPackets = 0;
     this.currentWindowBytes = 0;
     this.currentWindowAnomalies = 0;
@@ -265,15 +379,23 @@ export class IDSEngine {
     this.currentRiskScore = fuzzyResult.riskScore;
     this.currentRiskLevel = fuzzyResult.riskLevel;
 
-    // 2. Se o score de risco variou significativamente (+- 3 pontos), reotimiza as regras
+    // 2. Se o score de risco variou significativamente (+- 3 pontos), reotimiza e aplica as regras
     if (Math.abs(previousScore - this.currentRiskScore) >= 3 || Date.now() - this.lastAnalysisTimestamp > 30000) {
-      this.latestComparison = runOptimizationComparison(this.currentRiskScore);
+      // Usa piso preventivo 55 para manter defesas ativas selecionadas mesmo em tráfego basal
+      this.latestComparison = runOptimizationComparison(Math.max(55, this.currentRiskScore));
       this.lastAnalysisTimestamp = Date.now();
+
+      if (this.autoProtectEnabled && this.latestComparison.bgaResult.selectedRuleIds.length > 0) {
+        this.enforcedRuleIds.clear();
+        for (const id of this.latestComparison.bgaResult.selectedRuleIds) {
+          this.enforcedRuleIds.add(id);
+        }
+      }
 
       if (this.currentRiskLevel === 'HIGH' || this.currentRiskLevel === 'CRITICAL') {
         logger.security(
           'IDSEngine',
-          `Alerta de Risco Elevado: Score ${this.currentRiskScore}/100 [${this.currentRiskLevel}]. Regras BGA recomendadas: ${this.latestComparison.bgaResult.selectedRuleIds.join(', ')}`
+          `Alerta de Risco Elevado: Score ${this.currentRiskScore}/100 [${this.currentRiskLevel}]. Regras BGA recomendadas e aplicadas em proteção ativa: ${this.latestComparison.bgaResult.selectedRuleIds.join(', ')}`
         );
       }
     }

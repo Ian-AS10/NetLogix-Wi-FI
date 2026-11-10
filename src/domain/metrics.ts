@@ -72,5 +72,8 @@ export interface SystemStatus {
   uptimeSeconds: number;
   tsharkAvailable: boolean;
   recommendedRulesCount: number;
+  enforcedRuleIds?: string[];
+  autoProtectEnabled?: boolean;
+  mitigatedPacketsTotal?: number;
   lastAnalysisTimestamp: number;
 }
