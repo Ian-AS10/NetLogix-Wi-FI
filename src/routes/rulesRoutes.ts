@@ -52,7 +52,7 @@ router.post('/toggle', (req: Request, res: Response, next: NextFunction) => {
 
 /**
  * POST /api/rules/apply
- * Aplica imediatamente um lote de regras (ex.: seleção ótima do BGA ou do Guloso).
+ * Aplica imediatamente um lote de regras (ex.: seleção ótima do BGA).
  */
 router.post('/apply', (req: Request, res: Response, next: NextFunction) => {
   try {

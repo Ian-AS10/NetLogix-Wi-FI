@@ -10,7 +10,6 @@ import { SecurityRule, ThreatCategory } from '../domain/rules.js';
 interface RuleCatalogCardProps {
   rules: SecurityRule[];
   selectedBgaRuleIds: string[];
-  selectedGreedyRuleIds: string[];
   enforcedRuleIds: string[];
   autoProtectEnabled: boolean;
   mitigatedPacketsTotal: number;
@@ -23,7 +22,6 @@ interface RuleCatalogCardProps {
 export const RuleCatalogCard: React.FC<RuleCatalogCardProps> = ({
   rules,
   selectedBgaRuleIds,
-  selectedGreedyRuleIds,
   enforcedRuleIds,
   autoProtectEnabled,
   mitigatedPacketsTotal,
@@ -35,7 +33,6 @@ export const RuleCatalogCard: React.FC<RuleCatalogCardProps> = ({
   const [filter, setFilter] = useState<string>('ALL');
 
   const bgaSet = new Set(selectedBgaRuleIds);
-  const greedySet = new Set(selectedGreedyRuleIds);
   const enforcedSet = new Set(enforcedRuleIds);
 
   const filteredRules = rules.filter((r) => {
@@ -112,15 +109,6 @@ export const RuleCatalogCard: React.FC<RuleCatalogCardProps> = ({
           >
             Aplicar BGA ({selectedBgaRuleIds.length})
           </button>
-
-          <button
-            type="button"
-            disabled={isLoading || selectedGreedyRuleIds.length === 0}
-            onClick={() => onApplyRuleSet(selectedGreedyRuleIds, 'Baseline Guloso')}
-            className="px-2.5 py-1.5 rounded text-[11px] font-semibold bg-blue-950/70 hover:bg-blue-900/70 text-blue-200 border border-blue-500/50 transition disabled:opacity-50"
-          >
-            Aplicar Guloso ({selectedGreedyRuleIds.length})
-          </button>
         </div>
       </div>
 
@@ -166,7 +154,6 @@ export const RuleCatalogCard: React.FC<RuleCatalogCardProps> = ({
         {filteredRules.map((rule) => {
           const isEnforced = enforcedSet.has(rule.id);
           const isBgaSelected = bgaSet.has(rule.id);
-          const isGreedySelected = greedySet.has(rule.id);
 
           return (
             <div
@@ -202,11 +189,6 @@ export const RuleCatalogCard: React.FC<RuleCatalogCardProps> = ({
                     {isBgaSelected && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-900/60 text-purple-300 border border-purple-600/50 flex items-center gap-0.5">
                         <Check className="h-3 w-3" /> BGA
-                      </span>
-                    )}
-                    {isGreedySelected && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-900/60 text-blue-300 border border-blue-600/50 flex items-center gap-0.5">
-                        <Check className="h-3 w-3" /> GULOSO
                       </span>
                     )}
                     <button

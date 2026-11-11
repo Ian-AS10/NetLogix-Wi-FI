@@ -1,6 +1,6 @@
 /**
  * @file optimizerRoutes.ts
- * Rotas para consulta da comparação BGA vs Baseline Guloso e reexecução sob demanda.
+ * Rotas para consulta da otimização BGA e reexecução sob demanda.
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -28,7 +28,7 @@ router.post('/run', (req: Request, res: Response, next: NextFunction) => {
 
     res.json({
       success: true,
-      message: 'Comparação BGA vs Guloso executada com sucesso.',
+      message: 'Otimização BGA (Algoritmo Genético) executada com sucesso.',
       data: comparison,
     });
   } catch (err) {

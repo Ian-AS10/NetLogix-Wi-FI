@@ -242,7 +242,7 @@ export default function App() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message || 'Falha ao executar otimização.');
       setComparison(json.data);
-      showToast('success', 'Comparação BGA vs Guloso executada e sincronizada com o motor IPS.');
+      showToast('success', 'Otimização BGA (Algoritmo Genético) executada e sincronizada com o motor IPS.');
       fetchData();
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : String(err));
@@ -306,7 +306,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Middle Section: BGA vs Greedy Comparison */}
+        {/* Middle Section: BGA Defense Optimizer */}
         <OptimizerComparisonCard
           comparison={comparison}
           onRunOptimization={handleRunOptimization}
@@ -317,7 +317,6 @@ export default function App() {
         <RuleCatalogCard
           rules={rules}
           selectedBgaRuleIds={comparison?.bgaResult.selectedRuleIds ?? []}
-          selectedGreedyRuleIds={comparison?.greedyResult.selectedRuleIds ?? []}
           enforcedRuleIds={status?.enforcedRuleIds ?? []}
           autoProtectEnabled={status?.autoProtectEnabled ?? true}
           mitigatedPacketsTotal={status?.mitigatedPacketsTotal ?? 0}

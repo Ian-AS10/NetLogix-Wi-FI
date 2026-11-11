@@ -1,7 +1,7 @@
 /**
  * @file idsEngine.ts
  * Orquestrador central do IDS/IPS NetLogix Wi-Fi: coleta métricas, infere risco fuzzy,
- * executa os otimizadores (BGA vs Guloso) e aplica regras de proteção ativa.
+ * executa o otimizador genético BGA e aplica regras de proteção ativa.
  */
 
 import {
@@ -57,7 +57,7 @@ export class IDSEngine {
       totalBytes: 0,
     };
 
-    // Inicializa comparador BGA vs Guloso com os limites do sistema (40% de CPU)
+    // Inicializa otimizador BGA com os limites do sistema (40% de CPU)
     this.latestComparison = runOptimizationComparison(this.currentRiskScore, {
       maxCpuBudget: config.maxCpuBudget,
     });
@@ -176,7 +176,7 @@ export class IDSEngine {
   }
 
   /**
-   * Aplica imediatamente um conjunto completo de regras (ex.: seleção do BGA ou do Guloso).
+   * Aplica imediatamente um conjunto completo de regras (ex.: seleção ótima do BGA).
    */
   public applyRuleSet(ruleIds: string[], sourceLabel = 'BGA'): SystemStatus {
     this.enforcedRuleIds.clear();
@@ -328,7 +328,7 @@ export class IDSEngine {
 
     logger.info(
       'IDSEngine',
-      `Otimizador reavaliado: Vencedor [${this.latestComparison.winner}], Fitness BGA: ${this.latestComparison.bgaResult.fitnessScore}, Guloso: ${this.latestComparison.greedyResult.fitnessScore}`
+      `Otimizador BGA reavaliado: Fitness: ${this.latestComparison.bgaResult.fitnessScore}, Cobertura: ${this.latestComparison.bgaResult.effectiveCoveragePercent}%, CPU: ${this.latestComparison.bgaResult.totalCpuCostPercent}%`
     );
     return this.latestComparison;
   }
