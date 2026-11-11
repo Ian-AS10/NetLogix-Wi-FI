@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({ status, onRefresh, isLoading }) 
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Monitoramento de rede, inferência Fuzzy e proteção ativa automatizada (BGA vs Guloso)
+              Monitoramento de rede, inferência Fuzzy e proteção ativa automatizada por Algoritmo Genético (BGA)
             </p>
           </div>
         </div>

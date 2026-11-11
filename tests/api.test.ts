@@ -86,15 +86,14 @@ test('API: POST /api/metrics/inject valida inputs e atualiza score', async () =>
   assert.ok(invalidJson.error.message.includes('numéricos'));
 });
 
-test('API: GET /api/optimizer/comparison retorna comparação BGA vs Guloso', async () => {
+test('API: GET /api/optimizer/comparison retorna otimização BGA', async () => {
   const res = await fetch(`${baseUrl}/api/optimizer/comparison`);
   assert.equal(res.status, 200);
 
   const json = await res.json();
   assert.equal(json.success, true);
   assert.ok(json.data.bgaResult);
-  assert.ok(json.data.greedyResult);
-  assert.ok(['BGA', 'GREEDY', 'TIE'].includes(json.data.winner));
+  assert.equal(json.data.bgaResult.algorithm, 'BGA');
   assert.ok(json.data.analysisSummary.length > 10);
 });
 

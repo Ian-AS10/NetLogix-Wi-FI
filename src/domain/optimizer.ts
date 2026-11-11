@@ -1,6 +1,6 @@
 /**
  * @file optimizer.ts
- * Contratos de otimização combinatória: BGA e Baseline Guloso.
+ * Contratos de otimização combinatória: Algoritmo Genético Binário (BGA).
  */
 
 import { SecurityRule } from './rules.js';
@@ -8,7 +8,7 @@ import { SecurityRule } from './rules.js';
 export interface OptimizationConstraints {
   /**
    * Limite orçamentário máximo de CPU acumulada (%)
-   * Padrão: 80%
+   * Padrão: 40%
    */
   maxCpuBudget: number;
 
@@ -29,7 +29,7 @@ export interface BGAParameters {
 }
 
 export interface OptimizationSolution {
-  algorithm: 'BGA' | 'GREEDY';
+  algorithm: 'BGA';
   chromosome: number[];
   selectedRuleIds: string[];
   selectedRules: SecurityRule[];
@@ -47,7 +47,6 @@ export interface OptimizationComparison {
   riskScore: number;
   constraints: OptimizationConstraints;
   bgaResult: OptimizationSolution;
-  greedyResult: OptimizationSolution;
-  winner: 'BGA' | 'GREEDY' | 'TIE';
+  winner?: 'BGA';
   analysisSummary: string;
 }
